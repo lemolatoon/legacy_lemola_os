@@ -6,13 +6,14 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 
-# cancel panic to cancel stack unwinding
 
+# the profgile used for 'cargo build'
 [profile.dev]
-panic = "abort"
+panic = "abort" # disable stack unwinding on panic
 
+# the profile used for 'cargo build --release'
 [profile.release]
-panic = "abort"
+panic = "abort" # disable stack unwinding on panic
 
 
 [dependencies]

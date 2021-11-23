@@ -28,8 +28,8 @@ pub extern "C" fn _start() -> ! {
         }
     }
 
-    // vga_buffer::print_something();
-    let writer = vga_buffer::print_something();
+    vga_buffer::print_something();
+
 
     
 

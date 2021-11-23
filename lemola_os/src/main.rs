@@ -3,6 +3,8 @@
 
 use core::panic::PanicInfo;
 
+mod vga_buffer;
+
 static HELLO: &[u8] = b"Hello World!";
 static MESSAGE: &[u8] = b"Welcome to lemolaOS";
 
@@ -17,6 +19,7 @@ pub extern "C" fn _start() -> ! {
     let vga_buffer = 0xb8000 as *mut u8;
 
     for (i, &byte) in HELLO.iter().enumerate() {
+        break;
         unsafe {
             // raw pointer
             *vga_buffer.offset(i as isize * 2) = byte;
@@ -25,24 +28,10 @@ pub extern "C" fn _start() -> ! {
         }
     }
 
-    let mut printer = Printer::new();
+    // vga_buffer::print_something();
+    let writer = vga_buffer::print_something();
 
-    printer.str_counter += HELLO.len();
-
-    printer.print(b"   ");
-    printer.print_byte(num2byte(0));
-    printer.print_byte(num2byte(3));
-    printer.print_byte(num2byte(2));
-    printer.print_byte(num2byte(1));
-    printer.print(b"   ");
-
-    printer.print(MESSAGE);
-
-    printer.print(b"\nThis is typed from Printer");
-
-
-
-
+    
 
     loop{}
 }

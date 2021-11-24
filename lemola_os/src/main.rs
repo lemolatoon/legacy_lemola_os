@@ -2,11 +2,12 @@
 #![no_main]
 
 use core::panic::PanicInfo;
+use core::fmt;
 
 mod vga_buffer;
 
-static HELLO: &[u8] = b"Hello World!";
-static MESSAGE: &[u8] = b"Welcome to lemolaOS";
+static HELLO: &str = "Hello World!";
+static MESSAGE: &str = "Welcome to lemolaOS";
 
 // #[no_mangle]  関数の名前を暗号化するのを防ぐ
 // extern "C"  Cの呼び出し規則を使用する
@@ -15,22 +16,25 @@ pub extern "C" fn _start() -> ! {
     // this function is the entry point, since the linker looks for a function
     // named '_start' by default
 
-    // cast to 'raw pointer'
-    let vga_buffer = 0xb8000 as *mut u8;
+    use core::fmt::Write;
+    vga_buffer::WRITER.lock().write_str("Hello again").unwrap();
+    writeln!(vga_buffer::WRITER.lock(), ", some numbers: {} {}", 42, 1.337).unwrap();
+    writeln!(vga_buffer::WRITER.lock(), "Is the last sentence ended with new_line(\\n)?").unwrap();
 
-    for (i, &byte) in HELLO.iter().enumerate() {
-        break;
-        unsafe {
-            // raw pointer
-            *vga_buffer.offset(i as isize * 2) = byte;
-            *vga_buffer.offset(i as isize * 2 + 1) = 0xb;
-            
-        }
-    }
+    let mut printer = Printer::new();
+    writeln!(printer, "{}", HELLO).unwrap();
+    writeln!(printer, "{}", MESSAGE).unwrap();
 
-    vga_buffer::print_something();
+    printer.str_counter = 1000;
+    writeln!(printer, "1 + 1 = {}", 1 + 1).unwrap();
 
+    println!();
+    println!("above is new_line from `println!` macro");
+    println!("writing from `println!` macro + some numbers {}", 3.14 + 45435.0);
+    print!("Hello from `print!` macro  {}", 5);
+    println!();
 
+    // panic!("panic was caused");
     
 
     loop{}
@@ -45,18 +49,12 @@ impl Printer {
         Self {str_counter: 0}
     }
 
-    fn print(&mut self, str: &[u8]) {
+    fn print(&mut self, str: &str) {
         let vga_buffer = 0xb8000 as *mut u8;
 
-        for (i, &byte) in str.iter().enumerate() {
-            unsafe {
-                // raw pointer
-                *vga_buffer.offset((self.str_counter + i) as isize * 2) = byte;
-                *vga_buffer.offset((self.str_counter + i) as isize * 2 + 1) = 0xb;
-                // self.print_byte(byte);
-            }
+        for byte in str.bytes() {
+            self.print_byte(byte);
         }
-        self.str_counter += str.len();
     }
 
     fn print_byte(&mut self, byte: u8) {
@@ -69,10 +67,17 @@ impl Printer {
         self.str_counter += 1;
     }
 
-    fn panic(msg: &[u8]) -> usize {
+    fn panic(msg: &str) -> usize {
         let mut printer = Self {str_counter: 900};
         printer.print(msg);
         return 0;
+    }
+}
+
+impl fmt::Write for Printer {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        self.print(s);
+        Ok(())
     }
 }
 
@@ -88,7 +93,7 @@ fn num2byte(num: usize) -> u8 {
         7 => 55,
         8 => 56,
         9 => 57,
-        _ => Printer::panic(b"illegal argument at num2VGA"),
+        _ => Printer::panic("illegal argument at num2VGA"),
     };
 
     result as u8
@@ -98,7 +103,8 @@ fn num2byte(num: usize) -> u8 {
 
 // This function is called on panic.
 #[panic_handler]
-fn panic(_info: &PanicInfo) -> ! {
+fn panic(info: &PanicInfo) -> ! {
+    println!("{}", info);
     loop{}
 }
 

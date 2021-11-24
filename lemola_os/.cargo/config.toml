@@ -7,6 +7,8 @@ build-std = ["core", "compiler_builtins"]
 # (generally they are disable in order not to conflict those in C libraries)
 build-std-features = ["compiler-builtins-mem"]
 
+[target.'cfg(target_os = "none")']
+runner = "bootimage runner"
 
 [build]
 target = "x86_64-lemola_os.json"

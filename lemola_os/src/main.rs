@@ -1,9 +1,13 @@
 #![no_std]
 #![no_main]
+#![feature(custom_test_frameworks)]
+#![test_runner(crate::test_runner)]
+#![reexport_test_harness_main = "test_main"]
 
 use core::panic::PanicInfo;
 use core::fmt;
 
+mod serial;
 mod vga_buffer;
 
 static HELLO: &str = "Hello World!";
@@ -16,95 +20,64 @@ pub extern "C" fn _start() -> ! {
     // this function is the entry point, since the linker looks for a function
     // named '_start' by default
 
-    use core::fmt::Write;
-    vga_buffer::WRITER.lock().write_str("Hello again").unwrap();
-    writeln!(vga_buffer::WRITER.lock(), ", some numbers: {} {}", 42, 1.337).unwrap();
-    writeln!(vga_buffer::WRITER.lock(), "Is the last sentence ended with new_line(\\n)?").unwrap();
+    println!("Welcome to lemolaOS");
+    serial_println!("Hello from Serial");
 
-    let mut printer = Printer::new();
-    writeln!(printer, "{}", HELLO).unwrap();
-    writeln!(printer, "{}", MESSAGE).unwrap();
-
-    printer.str_counter = 1000;
-    writeln!(printer, "1 + 1 = {}", 1 + 1).unwrap();
-
-    println!();
-    println!("above is new_line from `println!` macro");
-    println!("writing from `println!` macro + some numbers {}", 3.14 + 45435.0);
-    print!("Hello from `print!` macro  {}", 5);
-    println!();
-
-    // panic!("panic was caused");
-    
+    #[cfg(test)]
+    test_main();
 
     loop{}
 }
 
-struct Printer {
-    str_counter: usize,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u32)]
+pub enum QemuExitCode {
+    Success = 0x10,
+    Failed = 0x11,
 }
 
-impl Printer {
-    fn new() -> Printer {
-        Self {str_counter: 0}
-    }
+pub fn exit_qemu(exit_code: QemuExitCode) {
+    use x86_64::instructions::port::Port;
 
-    fn print(&mut self, str: &str) {
-        let vga_buffer = 0xb8000 as *mut u8;
-
-        for byte in str.bytes() {
-            self.print_byte(byte);
-        }
-    }
-
-    fn print_byte(&mut self, byte: u8) {
-        let vga_buffer = 0xb8000 as *mut u8;
-        unsafe {
-            // raw pointer
-                *vga_buffer.offset(self.str_counter as isize * 2) = byte;
-                *vga_buffer.offset(self.str_counter as isize * 2 + 1) = 0xb;
-        }
-        self.str_counter += 1;
-    }
-
-    fn panic(msg: &str) -> usize {
-        let mut printer = Self {str_counter: 900};
-        printer.print(msg);
-        return 0;
+    unsafe {
+        // new port of iobase in isa-debug-exit
+        let mut port = Port::new(0xf4);
+        port.write(exit_code as u32);
     }
 }
 
-impl fmt::Write for Printer {
-    fn write_str(&mut self, s: &str) -> fmt::Result {
-        self.print(s);
-        Ok(())
+#[cfg(test)]
+fn test_runner(tests: &[&dyn Fn()]) {
+    serial_println!("Running {} tests", tests.len());
+    for test in tests {
+        test();
     }
+    exit_qemu(QemuExitCode::Success);
 }
 
-fn num2byte(num: usize) -> u8 {
-    let result = match num {
-        0 => 48,
-        1 => 49,
-        2 => 50,
-        3 => 51,
-        4 => 52,
-        5 => 53,
-        6 => 54,
-        7 => 55,
-        8 => 56,
-        9 => 57,
-        _ => Printer::panic("illegal argument at num2VGA"),
-    };
-
-    result as u8
+#[test_case]
+fn trivial_assertion() {
+    serial_print!("trivial assertion...");
+    assert_eq!(0, 1);
+    serial_println!("[ok]");
 }
 
 
 
 // This function is called on panic.
+#[cfg(not(test))]
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     println!("{}", info);
     loop{}
+}
+
+#[cfg(test)]
+#[panic_handler]
+fn panic(info: &PanicInfo) -> ! {
+    serial_println!("[failed]\n");
+    serial_println!("Error: {}\n", info);
+    exit_qemu(QemuExitCode::Failed);
+    loop{};
 }
 
